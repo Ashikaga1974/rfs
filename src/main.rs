@@ -1,72 +1,31 @@
-use serde::Deserialize;
-use std::fs;
-use std::fs::{create_dir_all, metadata};
 use std::path::Path;
-use walkdir::WalkDir;
-use fs_extra::file::{copy, CopyOptions};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use std::thread;
+use std::time::Duration;
+use config::load_config;
+use sync::sync_folders;
+use input::start_input_listener;
+use simplelog::{Config as LogConfig, LevelFilter, WriteLogger};
+use std::fs::File;
 
-// Struktur für Konfigurationsdaten
-#[derive(Deserialize)]
-struct Config {
-    source_folder: String,
-    destination_folder: String,
-}
-
-// Funktion, um die Konfiguration aus einer Datei zu laden
-fn load_config(file_path: &str) -> Config {
-    let config_data = fs::read_to_string(file_path).expect("Unable to read config file");
-    serde_json::from_str(&config_data).expect("JSON was not well-formatted")
-}
-
-// Funktion zur Synchronisierung von Ordnern
-fn sync_folders(source: &Path, destination: &Path) -> u32 {
-    let mut copied_files = 0; // Zähler für kopierte Dateien
-
-    for entry in WalkDir::new(source) {
-        let entry = entry.unwrap();
-        let relative_path = entry.path().strip_prefix(source).unwrap();
-        let dest_path = destination.join(relative_path);
-
-        if entry.path().is_dir() {
-            // Erstelle Ordner im Ziel, falls sie nicht existieren
-            if !dest_path.exists() {
-                create_dir_all(&dest_path).expect("Failed to create directory");
-            }
-        } else if entry.path().is_file() {
-            let should_copy = if dest_path.exists() {
-                // Vergleiche die Änderungszeit
-                let source_metadata = metadata(entry.path()).expect(
-                    "Failed to get metadata of source file",
-                );
-                let dest_metadata = metadata(&dest_path).expect(
-                    "Failed to get metadata of destination file",
-                );
-
-                let source_modified = source_metadata
-                    .modified()
-                    .expect("Failed to get source modification time");
-                let dest_modified = dest_metadata
-                    .modified()
-                    .expect("Failed to get destination modification time");
-
-                source_modified > dest_modified // Kopiere nur, wenn die Quelldatei neuer ist
-            } else {
-                true // Kopiere, wenn die Datei im Ziel nicht existiert
-            };
-
-            if should_copy {
-                let mut options = CopyOptions::new(); // Standardoptionen
-                options.overwrite = true;
-                copy(entry.path(), &dest_path, &options).expect("Failed to copy file");
-                copied_files += 1; // Zähler inkrementieren
-            }
-        }
-    }
-
-    copied_files // Gibt die Anzahl der kopierten Dateien zurück
-}
+mod config;
+mod sync;
+mod input;
 
 fn main() {
+    // Initialisiere Logging
+    WriteLogger::init(
+        LevelFilter::Info,
+        LogConfig::default(),
+        File::create("application.log").expect("Unable to create log file"),
+    )
+    .expect("Failed to initialize logger");
+
+    log::info!("Application started.");
+
     // Lade die Konfiguration
     let config = load_config("config.json");
 
@@ -76,19 +35,39 @@ fn main() {
 
     // Überprüfe, ob die Ordner existieren
     if !source_path.exists() {
-        eprintln!("Source folder does not exist: {}", config.source_folder);
+        log::error!("Source folder does not exist: {}", config.source_folder);
         return;
     }
     if !destination_path.exists() {
-        create_dir_all(destination_path).expect("Failed to create destination folder");
+        std::fs::create_dir_all(destination_path).expect("Failed to create destination folder");
     }
 
-    // Synchronisiere die Ordner und erhalte die Anzahl kopierter Dateien
-    let copied_files = sync_folders(source_path, destination_path);
+    // Gemeinsamer Zustand für die Beendigung
+    let running = Arc::new(AtomicBool::new(true));
+    let running_clone = Arc::clone(&running);
 
-    // Ausgabe der Ergebnisse
-    println!(
-        "Synchronization complete. {} files were copied.",
-        copied_files
-    );
+    // Separater Thread für Benutzereingaben
+    thread::spawn(move || start_input_listener(running_clone));
+
+    // Hauptschleife zur Synchronisation
+    while running.load(Ordering::Relaxed) {
+        log::info!("Starting synchronization...");
+        let copied_files = sync_folders(source_path, destination_path);
+        log::info!("Synchronization complete. {} files were copied.", copied_files);
+
+        // Warte das konfigurierte Intervall ab
+        let wait_time = Duration::from_secs(config.sync_interval_seconds);
+        log::info!(
+            "Waiting for {} seconds before the next synchronization...",
+            config.sync_interval_seconds
+        );
+
+        let mut elapsed = 0;
+        while elapsed < wait_time.as_secs() && running.load(Ordering::Relaxed) {
+            thread::sleep(Duration::from_secs(1));
+            elapsed += 1;
+        }
+    }
+
+    log::info!("Program terminated.");
 }
