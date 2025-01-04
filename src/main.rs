@@ -1,15 +1,13 @@
 use std::path::Path;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
+use std::sync::{ atomic::{ AtomicBool, Ordering }, Arc };
 use std::thread;
 use std::time::Duration;
+use std::fs::OpenOptions;
+use std::process;
 use config::load_config;
 use sync::sync_folders;
 use input::start_input_listener;
-use simplelog::{Config as LogConfig, LevelFilter, WriteLogger};
-use std::fs::File;
+use simplelog::{ Config as LogConfig, LevelFilter, WriteLogger };
 
 mod config;
 mod sync;
@@ -17,12 +15,7 @@ mod input;
 
 fn main() {
     // Initialisiere Logging
-    WriteLogger::init(
-        LevelFilter::Info,
-        LogConfig::default(),
-        File::create("application.log").expect("Unable to create log file"),
-    )
-    .expect("Failed to initialize logger");
+    init_logger();
 
     log::info!("Application started.");
 
@@ -70,4 +63,22 @@ fn main() {
     }
 
     log::info!("Program terminated.");
+}
+
+fn init_logger() {
+    let log_file = OpenOptions::new()
+        .create(true) // Erstelle die Datei, falls sie nicht existiert
+        .append(true) // Füge an die bestehende Datei an
+        .open("application.log")
+        .unwrap_or_else(|e| {
+            eprintln!("Failed to open log file: {}", e);
+            process::exit(1);
+        });
+
+    WriteLogger::init(LevelFilter::Info, LogConfig::default(), log_file).unwrap_or_else(|e| {
+        eprintln!("Failed to initialize logger: {}", e);
+        process::exit(1);
+    });
+
+    log::info!("Logger initialized.");
 }
