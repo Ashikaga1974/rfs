@@ -2,22 +2,29 @@ use std::path::Path;
 use std::sync::{ atomic::{ AtomicBool, Ordering }, Arc };
 use std::thread;
 use std::time::Duration;
-use std::fs::OpenOptions;
-use std::process;
 use config::load_config;
 use sync::sync_folders;
-use input::start_input_listener;
-use simplelog::{ Config as LogConfig, LevelFilter, WriteLogger };
+use device_query::{ DeviceQuery, DeviceState, Keycode };
+use initlogger::init_logger;
 
 mod config;
 mod sync;
-mod input;
+mod initlogger;
 
 fn main() {
     // Initialisiere Logging
     init_logger();
 
     log::info!("Application started.");
+
+    let config_file_path = "config.json";
+
+    if !Path::new(config_file_path).exists() {
+        log::error!("Configuration file '{}' does not exist.", config_file_path);
+        std::process::exit(1);
+    }
+
+    log::info!("Configuration file '{}' found. Proceeding with initialization.", config_file_path);
 
     // Lade die Konfiguration
     let config = load_config("config.json");
@@ -35,12 +42,23 @@ fn main() {
         std::fs::create_dir_all(destination_path).expect("Failed to create destination folder");
     }
 
-    // Gemeinsamer Zustand für die Beendigung
     let running = Arc::new(AtomicBool::new(true));
-    let running_clone = Arc::clone(&running);
+    let running_clone = Arc::clone(&running); // Klon für den Thread
 
-    // Separater Thread für Benutzereingaben
-    thread::spawn(move || start_input_listener(running_clone));
+    // Starte den Thread für Tastatureingaben
+    let _handle = thread::spawn(move || {
+        let device_state = DeviceState::new();
+        while running_clone.load(Ordering::Relaxed) {
+            let keys: Vec<Keycode> = device_state.get_keys();
+            if keys.contains(&Keycode::LAlt) && keys.contains(&Keycode::A) {
+                log::info!("'ALT+a' pressed!");
+                running_clone.store(false, Ordering::Relaxed); // Verwende den Klon
+                log::info!("Exiting...");
+                break;
+            }
+            thread::sleep(Duration::from_millis(100)); // Vermeide hohe CPU-Auslastung
+        }
+    });
 
     // Hauptschleife zur Synchronisation
     while running.load(Ordering::Relaxed) {
@@ -65,20 +83,20 @@ fn main() {
     log::info!("Program terminated.");
 }
 
-fn init_logger() {
-    let log_file = OpenOptions::new()
-        .create(true) // Erstelle die Datei, falls sie nicht existiert
-        .append(true) // Füge an die bestehende Datei an
-        .open("application.log")
-        .unwrap_or_else(|e| {
-            eprintln!("Failed to open log file: {}", e);
-            process::exit(1);
-        });
+// fn init_logger() {
+//     let log_file = OpenOptions::new()
+//         .create(true) // Erstelle die Datei, falls sie nicht existiert
+//         .append(true) // Füge an die bestehende Datei an
+//         .open("application.log")
+//         .unwrap_or_else(|e| {
+//             eprintln!("Failed to open log file: {}", e);
+//             process::exit(1);
+//         });
 
-    WriteLogger::init(LevelFilter::Info, LogConfig::default(), log_file).unwrap_or_else(|e| {
-        eprintln!("Failed to initialize logger: {}", e);
-        process::exit(1);
-    });
+//     WriteLogger::init(LevelFilter::Info, LogConfig::default(), log_file).unwrap_or_else(|e| {
+//         eprintln!("Failed to initialize logger: {}", e);
+//         process::exit(1);
+//     });
 
-    log::info!("Logger initialized.");
-}
+//     log::info!("Logger initialized.");
+// }
