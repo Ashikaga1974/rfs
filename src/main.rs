@@ -9,6 +9,7 @@ use sync::sync_folders;
 use device_query::{ DeviceQuery, DeviceState, Keycode };
 use initlogger::init_logger;
 use notification::{ send_start_notification, send_custom_notification };
+use tray_icon::{ TrayIconBuilder, Icon };
 
 mod config;
 mod sync;
@@ -18,6 +19,12 @@ mod notification;
 fn main() {
     // Sende Benachrichtigung, dass die Anwendung gestartet wurde
     send_start_notification();
+
+    let icon = Icon::from_path(
+        "resources/strategy_goal_progress_grow_icon_262694.ico",
+        None
+    ).unwrap();
+    let _tray_icon = TrayIconBuilder::new().with_icon(icon).build().unwrap();
 
     // Initialisiere Logging
     init_logger();
