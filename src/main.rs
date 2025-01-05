@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use std::path::Path;
 use std::sync::{ atomic::{ AtomicBool, Ordering }, Arc };
 use std::thread;

@@ -13,3 +13,13 @@ log = "0.4"
 simplelog = "0.12" # Oder flexi_logger = "0.27"
 device_query = "2.1.0"
 winrt-notification = "0.5"
+
+[[bin]]
+name = "rfs"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+
+[package.metadata]
+cargo = { windows_subsystem = "windows" }
