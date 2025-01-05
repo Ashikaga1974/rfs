@@ -6,12 +6,17 @@ use config::load_config;
 use sync::sync_folders;
 use device_query::{ DeviceQuery, DeviceState, Keycode };
 use initlogger::init_logger;
+use notification::{ send_start_notification, send_custom_notification };
 
 mod config;
 mod sync;
 mod initlogger;
+mod notification;
 
 fn main() {
+    // Sende Benachrichtigung, dass die Anwendung gestartet wurde
+    send_start_notification();
+
     // Initialisiere Logging
     init_logger();
 
@@ -81,22 +86,7 @@ fn main() {
     }
 
     log::info!("Program terminated.");
+
+    // Zeige eine Benachrichtigung beim Beenden
+    send_custom_notification("App beendet", "Die Anwendung wurde erfolgreich beendet.", "test");
 }
-
-// fn init_logger() {
-//     let log_file = OpenOptions::new()
-//         .create(true) // Erstelle die Datei, falls sie nicht existiert
-//         .append(true) // Füge an die bestehende Datei an
-//         .open("application.log")
-//         .unwrap_or_else(|e| {
-//             eprintln!("Failed to open log file: {}", e);
-//             process::exit(1);
-//         });
-
-//     WriteLogger::init(LevelFilter::Info, LogConfig::default(), log_file).unwrap_or_else(|e| {
-//         eprintln!("Failed to initialize logger: {}", e);
-//         process::exit(1);
-//     });
-
-//     log::info!("Logger initialized.");
-// }
