@@ -9,7 +9,7 @@ pub fn init_logger() {
         .append(true) // Füge an die bestehende Datei an
         .open("application.log")
         .unwrap_or_else(|e| {
-            eprintln!("Failed to open log file: {}", e);
+            log::error!("Failed to open log file: {}", e);
             process::exit(1);
         });
 

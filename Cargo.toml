@@ -10,13 +10,14 @@ walkdir = "2.3"
 fs_extra = "1.2"
 crossterm = "0.28.1"
 log = "0.4"
-simplelog = "0.12" # Oder flexi_logger = "0.27"
+simplelog = "0.12.2" # Oder flexi_logger = "0.27"
 device_query = "2.1.0"
 winrt-notification = "0.5"
-tray-icon = "0.x.x"
+tray-item = "0.10.0"
+
 
 [build-dependencies]
-winresource = "0.1"
+windres = "*"
 
 [[bin]]
 name = "rfs"

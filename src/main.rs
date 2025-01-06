@@ -9,39 +9,38 @@ use sync::sync_folders;
 use device_query::{ DeviceQuery, DeviceState, Keycode };
 use initlogger::init_logger;
 use notification::{ send_start_notification, send_custom_notification };
-use tray_icon::{ TrayIconBuilder, Icon };
+use tray_item::{ IconSource, TrayItem };
 
 mod config;
 mod sync;
 mod initlogger;
 mod notification;
 
-fn main() {
-    // Sende Benachrichtigung, dass die Anwendung gestartet wurde
-    send_start_notification();
+const CONFIG_FILE_PATH: &str = "config.json";
 
-    let icon = Icon::from_path(
-        "resources/strategy_goal_progress_grow_icon_262694.ico",
-        None
+fn main() {
+    let mut _tray = TrayItem::new(
+        "Beenden mit ALT+a",
+        IconSource::Resource("aa-exe-icon")
     ).unwrap();
-    let _tray_icon = TrayIconBuilder::new().with_icon(icon).build().unwrap();
 
     // Initialisiere Logging
     init_logger();
 
     log::info!("Application started.");
 
-    let config_file_path = "config.json";
-
-    if !Path::new(config_file_path).exists() {
-        log::error!("Configuration file '{}' does not exist.", config_file_path);
+    if !Path::new(CONFIG_FILE_PATH).exists() {
+        log::error!("Configuration file '{}' does not exist.", CONFIG_FILE_PATH);
         std::process::exit(1);
     }
 
-    log::info!("Configuration file '{}' found. Proceeding with initialization.", config_file_path);
+    log::info!("Configuration file '{}' found. Proceeding with initialization.", CONFIG_FILE_PATH);
 
     // Lade die Konfiguration
     let config = load_config("config.json");
+
+    // Sende Benachrichtigung, dass die Anwendung gestartet wurde
+    send_start_notification();
 
     // Pfade definieren
     let source_path = Path::new(&config.source_folder);
@@ -53,7 +52,10 @@ fn main() {
         return;
     }
     if !destination_path.exists() {
-        std::fs::create_dir_all(destination_path).expect("Failed to create destination folder");
+        if let Err(e) = std::fs::create_dir_all(destination_path) {
+            log::error!("Failed to create destination folder: {}", e);
+            return;
+        }
     }
 
     let running = Arc::new(AtomicBool::new(true));
